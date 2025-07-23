@@ -1,12 +1,12 @@
-# app.py  —  IPL Batters Dashboard (era‑adjusted with season filter)
+# app.py — IPL Batters Dashboard (simpler version without season filter)
 
-import os
 import streamlit as st
 import pandas as pd
 import altair as alt
+import os
 
 # ─────────────────────────────────────────────────────────────
-# 0. Page configuration
+# Page & theme
 # ─────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="IPL Batters – Era‑adjusted Stats",
@@ -15,105 +15,59 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────
-# 1. Data loader (cached)
+# Data loader (cached)
 # ─────────────────────────────────────────────────────────────
 DATA_PATH = "data/ipl_batter_metrics.parquet"
 
 @st.cache_data
 def load_metrics(path: str) -> pd.DataFrame:
     if not os.path.isfile(path):
-        st.error(
-            f"❌ **{path}** not found. "
-            "Run the preprocessing notebook or push the parquet file."
-        )
+        st.error(f"❌ {path} not found. Please run preprocessing first.")
         st.stop()
     return pd.read_parquet(path)
 
 df = load_metrics(DATA_PATH)
 
 # ─────────────────────────────────────────────────────────────
-# 2. Sidebar — filters
+# Sidebar filters
 # ─────────────────────────────────────────────────────────────
 st.sidebar.header("Filters")
 
-# Season multi‑select
-seasons_all = sorted(df.season.dropna().unique())
-seasons_sel = st.sidebar.multiselect(
-    "Seasons (year)",
-    seasons_all,
-    default=seasons_all,
-    help="Choose one or more IPL seasons to include in the analysis",
-)
-
-# Phase selector
 phase = st.sidebar.selectbox("Phase", df.phase.unique())
-
-# Overall career filters
-min_runs  = st.sidebar.slider(
-    "Min career runs", 0, int(df.total_runs.max()), 500, 100
-)
-min_games = st.sidebar.slider(
-    "Min career matches", 0, int(df.games.max()), 25, 5
-)
-
-# How many top batters to show
+min_runs = st.sidebar.slider("Min career runs", 0, int(df.total_runs.max()), 500, 100)
+min_games = st.sidebar.slider("Min career matches", 0, int(df.games.max()), 25, 5)
 top_n = st.sidebar.slider("Top‑N by Zulu", 5, 50, 25, 5)
-
-# Scatter axis mode
-axis_mode = st.sidebar.radio(
-    "Scatter axes",
-    ("Raw SR vs Avg", "True SR vs Avg"),
-)
+axis_mode = st.sidebar.radio("Scatter axes", ("Raw SR vs Avg", "True SR vs Avg"))
 
 # ─────────────────────────────────────────────────────────────
-# 3. Apply filters
+# Filter & sort
 # ─────────────────────────────────────────────────────────────
-mask = (
-    (df.phase == phase)
-    & (df.season.isin(seasons_sel))
-    & (df.total_runs >= min_runs)
-    & (df.games >= min_games)
-)
-
 view = (
-    df[mask]
+    df[df.phase == phase]
+    .query("total_runs >= @min_runs and games >= @min_games")
     .sort_values("zulu", ascending=False)
     .head(top_n)
     .reset_index(drop=True)
 )
 
 # ─────────────────────────────────────────────────────────────
-# 4. Display table
+# Table
 # ─────────────────────────────────────────────────────────────
-st.subheader(
-    f"{phase} – Top {len(view)} by Zulu  "
-    f"({', '.join(map(str, seasons_sel))})"
-)
-
+st.subheader(f"{phase} – Top {len(view)} by Zulu")
 st.dataframe(
-    view[
-        [
-            "batter",
-            "runs",
-            "balls",
-            "average",
-            "strike_rate",
-            "true_avg",
-            "true_sr",
-            "zulu",
-            "games",
-            "total_runs",
-        ]
-    ],
+    view[[
+        "batter", "runs", "balls", "average", "strike_rate",
+        "true_avg", "true_sr", "zulu", "games", "total_runs"
+    ]],
     use_container_width=True,
 )
 
 # ─────────────────────────────────────────────────────────────
-# 5. Scatter plot
+# Scatter plot
 # ─────────────────────────────────────────────────────────────
 if axis_mode.startswith("Raw"):
     x_col, y_col = "strike_rate", "average"
-    x_lab, y_lab = "Strike‑rate", "Average"
+    x_lab, y_lab = "Strike-rate", "Average"
 else:
     x_col, y_col = "true_sr", "true_avg"
     x_lab, y_lab = "True SR (÷ era mean)", "True Avg (÷ era mean)"
@@ -124,18 +78,8 @@ base = (
     .encode(
         x=alt.X(f"{x_col}:Q", title=x_lab),
         y=alt.Y(f"{y_col}:Q", title=y_lab),
-        tooltip=[
-            "batter",
-            "runs",
-            "balls",
-            "average",
-            "strike_rate",
-            "true_avg",
-            "true_sr",
-            "zulu",
-            "games",
-            "total_runs",
-        ],
+        tooltip=["batter", "runs", "strike_rate", "average",
+                 "true_sr", "true_avg", "zulu"],
     )
 )
 
