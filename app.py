@@ -1,22 +1,22 @@
-# app.py — IPL Batters Dashboard (simpler version without season filter)
+# app.py — IPL Batters Dashboard 
 
 import streamlit as st
 import pandas as pd
 import altair as alt
 import os
 
-# ─────────────────────────────────────────────────────────────
+
 # Page & theme
-# ─────────────────────────────────────────────────────────────
+
 st.set_page_config(
     page_title="IPL Batters – Era‑adjusted Stats",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ─────────────────────────────────────────────────────────────
+
 # Data loader (cached)
-# ─────────────────────────────────────────────────────────────
+
 DATA_PATH = "data/ipl_batter_metrics.parquet"
 
 @st.cache_data
@@ -28,9 +28,9 @@ def load_metrics(path: str) -> pd.DataFrame:
 
 df = load_metrics(DATA_PATH)
 
-# ─────────────────────────────────────────────────────────────
+
 # Sidebar filters
-# ─────────────────────────────────────────────────────────────
+
 st.sidebar.header("Filters")
 
 phase = st.sidebar.selectbox("Phase", df.phase.unique())
@@ -39,9 +39,9 @@ min_games = st.sidebar.slider("Min career matches", 0, int(df.games.max()), 25, 
 top_n = st.sidebar.slider("Top‑N by Zulu", 5, 50, 25, 5)
 axis_mode = st.sidebar.radio("Scatter axes", ("Raw SR vs Avg", "True SR vs Avg"))
 
-# ─────────────────────────────────────────────────────────────
+
 # Filter & sort
-# ─────────────────────────────────────────────────────────────
+
 view = (
     df[df.phase == phase]
     .query("total_runs >= @min_runs and games >= @min_games")
@@ -50,9 +50,9 @@ view = (
     .reset_index(drop=True)
 )
 
-# ─────────────────────────────────────────────────────────────
+
 # Table
-# ─────────────────────────────────────────────────────────────
+
 st.subheader(f"{phase} – Top {len(view)} by Zulu")
 st.dataframe(
     view[[
@@ -62,9 +62,9 @@ st.dataframe(
     use_container_width=True,
 )
 
-# ─────────────────────────────────────────────────────────────
+
 # Scatter plot
-# ─────────────────────────────────────────────────────────────
+
 if axis_mode.startswith("Raw"):
     x_col, y_col = "strike_rate", "average"
     x_lab, y_lab = "Strike-rate", "Average"
